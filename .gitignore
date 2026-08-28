@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# PlatformIO
+esp32/.pio/
+esp32/.vscode/
+
+# Логи и экспорт телеметрии
+*.log
+telemetry_*.csv
