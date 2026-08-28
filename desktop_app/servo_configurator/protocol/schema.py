@@ -75,7 +75,7 @@ PARAMS: tuple[Param, ...] = (
         description="Адрес привода на TTL-шине",
     ),
     EnumParam(
-        "homing.dir", "Направление поиска", ("cw", "ccw"), "ccw",
+        "homing.dir", "Направление поиска", ("cw", "ccw"), "cw",
         description="Направление движения при поиске механического упора",
     ),
     IntParam(
