@@ -127,18 +127,25 @@ class DeviceClient:
         self._assembler.reset()
         self._transport.open()
 
-        self._reader = threading.Thread(
-            target=self._read_loop, name="device-reader", daemon=True
-        )
-        self._reader.start()
+        # Поле заполняется только после старта: иначе одновременный disconnect
+        # попытается присоединиться к ещё не запущенному потоку.
+        reader = threading.Thread(target=self._read_loop, name="device-reader", daemon=True)
+        reader.start()
+        self._reader = reader
         logger.info("подключено: %s", self._transport.description)
+
+    def clear_callbacks(self) -> None:
+        """Перестаёт вызывать подписчиков (см. :meth:`ServoDevice.clear_callbacks`)."""
+        self._on_notification = None
+        self._on_link_lost = None
 
     def disconnect(self) -> None:
         """Останавливает чтение и закрывает канал. Повторный вызов безопасен."""
         self._stopping.set()
 
         reader, self._reader = self._reader, None
-        if reader is not None and reader is not threading.current_thread():
+        if (reader is not None and reader is not threading.current_thread()
+                and reader.is_alive()):
             reader.join(timeout=2.0)
 
         self._transport.close()

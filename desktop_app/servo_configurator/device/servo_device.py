@@ -108,6 +108,16 @@ class ServoDevice:
                            remote_version, PROTOCOL_VERSION)
         return info
 
+    def clear_callbacks(self) -> None:
+        """Отвязывает обработчики событий.
+
+        Вызывается перед уничтожением подписчика: поток чтения живёт до
+        закрытия канала и иначе обратится к уже удалённому объекту.
+        """
+        self._on_telemetry = None
+        self._on_event = None
+        self._client.clear_callbacks()
+
     def disconnect(self) -> None:
         self._stop_keepalive()
         with self._telemetry_lock:
@@ -129,15 +139,18 @@ class ServoDevice:
         движения.
         """
         self._keepalive_stop.clear()
-        self._keepalive = threading.Thread(
+        # Как и поток чтения, поле заполняется после старта.
+        thread = threading.Thread(
             target=self._keepalive_loop, name="device-keepalive", daemon=True
         )
-        self._keepalive.start()
+        thread.start()
+        self._keepalive = thread
 
     def _stop_keepalive(self) -> None:
         self._keepalive_stop.set()
         thread, self._keepalive = self._keepalive, None
-        if thread is not None and thread is not threading.current_thread():
+        if (thread is not None and thread is not threading.current_thread()
+                and thread.is_alive()):
             thread.join(timeout=2.0)
 
     def _keepalive_loop(self) -> None:
