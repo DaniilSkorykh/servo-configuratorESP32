@@ -11,3 +11,6 @@ esp32/.vscode/
 # Логи и экспорт телеметрии
 *.log
 telemetry_*.csv
+
+# PlatformIO
+esp32/.pio/
