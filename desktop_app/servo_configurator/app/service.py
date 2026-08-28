@@ -156,8 +156,10 @@ class ServoService(QObject):
             self.read_config()
 
         def on_failure(error: Exception) -> None:
-            self._device = None
-            self._transport = None
+            device.clear_callbacks()
+            if self._device is device:
+                self._device = None
+                self._transport = None
             self.disconnected.emit(_describe_exception(error))
 
         self._submit(task, on_success, on_failure, title="Подключение")
@@ -169,8 +171,7 @@ class ServoService(QObject):
         закрытие может занять до секунды, и всё это время органы управления не
         должны выглядеть работающими.
         """
-        device, self._device = self._device, None
-        self._transport = None
+        device = self._release_device()
         if device is None:
             return
 
@@ -293,13 +294,9 @@ class ServoService(QObject):
         Оставлять привод вращающимся после закрытия окна недопустимо, поэтому
         останов выполняется синхронно, до завершения процесса.
         """
-        device, self._device = self._device, None
-        self._transport = None
+        device = self._release_device()
 
         if device is not None:
-            # Сначала отвязываем обработчики: сигналы этого объекта скоро станут
-            # недействительными, а поток чтения ещё работает.
-            device.clear_callbacks()
             try:
                 if device.is_connected:
                     device.stop()
@@ -314,6 +311,20 @@ class ServoService(QObject):
     # ------------------------------------------------------------------
     # Внутреннее
     # ------------------------------------------------------------------
+
+    def _release_device(self) -> ServoDevice | None:
+        """Перестаёт владеть устройством и отвязывает его обработчики.
+
+        Отвязать необходимо в любом пути отключения, а не только при выходе:
+        поток чтения устройства живёт до закрытия канала, и если он сохранит
+        ссылку на сигналы этого объекта, то обратится к ним уже после того, как
+        Qt его уничтожит.
+        """
+        device, self._device = self._device, None
+        self._transport = None
+        if device is not None:
+            device.clear_callbacks()
+        return device
 
     def _require_device(self) -> ServoDevice:
         device = self._device
@@ -414,8 +425,7 @@ class ServoService(QObject):
             self.read_config()
 
     def _on_link_lost(self, code: str, message: str) -> None:
-        self._device = None
-        self._transport = None
+        self._release_device()
         self.disconnected.emit(f"{describe(code)}: {message}")
 
 
