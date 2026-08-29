@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from servo_configurator import __version__  # noqa: E402
+from servo_configurator.protocol import Direction  # noqa: E402
 from servo_configurator.ui.main_window import MainWindow  # noqa: E402
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -30,16 +31,17 @@ LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 def configure_logging(verbose: bool, log_file: Path | None) -> None:
     """Настраивает вывод журнала в консоль и, при необходимости, в файл.
 
-    Поток вывода переводится в UTF-8: консоль Windows по умолчанию работает в
+    Потоки вывода переводятся в UTF-8: консоль Windows по умолчанию работает в
     однобайтовой кодировке, в которой нет ни тире, ни стрелок из сообщений, и
     logging печатает «Logging error» вместо текста. Режим ``replace`` оставляет
     сообщение читаемым даже там, где часть символов не отображается.
     """
-    try:
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError):
-        # Поток подменён или не поддерживает перенастройку — не повод падать.
-        pass
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            # Поток подменён или не поддерживает перенастройку — не повод падать.
+            pass
 
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     if log_file is not None:
@@ -61,7 +63,61 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                         help="подробный журнал")
     parser.add_argument("--log-file", type=Path, default=None,
                         help="дополнительно писать журнал в файл")
+    parser.add_argument("--self-test", action="store_true",
+                        help="проверить работоспособность на симуляторе и выйти")
     return parser.parse_args(argv[1:])
+
+
+def run_self_test(application: QApplication, window: MainWindow) -> int:
+    """Подключается к симулятору, проверяет обмен и завершает работу.
+
+    Нужен, чтобы убедиться в работоспособности установленной сборки, не
+    подключая оборудование: упакованному приложению может не хватить
+    библиотеки, о чём обычный запуск сообщит лишь пустым окном.
+    """
+    import time
+
+    checks: list[tuple[str, bool]] = []
+
+    def wait(seconds: float, condition) -> bool:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            application.processEvents()
+            if condition():
+                return True
+            time.sleep(0.01)
+        return False
+
+    window.connection_panel.connect_requested.emit(None)
+    connected = wait(10.0, lambda: window.manual_panel.move_button.isEnabled())
+    checks.append(("подключение к симулятору", connected))
+
+    if connected:
+        checks.append((
+            "конфигурация прочитана",
+            wait(5.0, lambda: window.homing_panel.form.values()["homing.speed"] > 0),
+        ))
+        window.service.motor_run(Direction.CCW, 500)
+        checks.append((
+            "телеметрия поступает",
+            wait(5.0, lambda: window.telemetry_panel._values["pos"].text() not in ("", "—")),
+        ))
+        checks.append((
+            "графики наполняются",
+            wait(5.0, lambda: len(window.charts_panel._buffers["pos"].data()[0]) > 20),
+        ))
+        window.service.stop()
+        wait(1.0, lambda: False)
+
+    window.service.shutdown()
+    window.close()
+
+    for name, passed in checks:
+        print(f"[{'ok' if passed else 'СБОЙ'}] {name}")
+
+    failed = [name for name, passed in checks if not passed]
+    print("Самопроверка пройдена" if not failed else f"Не пройдено: {', '.join(failed)}")
+    return 0 if not failed else 1
 
 
 def main(argv: list[str]) -> int:
@@ -74,8 +130,11 @@ def main(argv: list[str]) -> int:
     application.setApplicationVersion(__version__)
 
     window = MainWindow()
-    window.show()
 
+    if args.self_test:
+        return run_self_test(application, window)
+
+    window.show()
     return application.exec()
 
 

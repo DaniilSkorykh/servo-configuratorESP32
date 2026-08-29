@@ -14,3 +14,7 @@ telemetry_*.csv
 
 # PlatformIO
 esp32/.pio/
+
+# Сборка исполняемого файла
+dist/
+build/

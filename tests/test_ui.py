@@ -319,6 +319,33 @@ class TestScenario:
         assert firmware.servo.velocity == 0.0
 
 
+class TestSelfTest:
+    """Режим самопроверки: им проверяют работоспособность установленной сборки."""
+
+    def test_self_test_passes_on_simulator(self, qapp):
+        import main
+
+        window = MainWindow()
+        try:
+            code = main.run_self_test(qapp, window)
+        finally:
+            window.service.shutdown()
+        assert code == 0
+
+    def test_self_test_reports_all_checks(self, qapp, capsys):
+        import main
+
+        window = MainWindow()
+        try:
+            main.run_self_test(qapp, window)
+        finally:
+            window.service.shutdown()
+
+        output = capsys.readouterr().out
+        for expected in ("подключение", "конфигурация", "телеметрия", "графики"):
+            assert expected in output
+
+
 class TestServiceWithoutUi:
     def test_shutdown_without_connection_is_safe(self, qapp):
         service = ServoService()
