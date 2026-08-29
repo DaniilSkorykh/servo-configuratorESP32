@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QCloseEvent
@@ -306,11 +306,11 @@ class _DemoFaultPanel(QGroupBox):
     #: Запрошена имитация неисправности: ``link``, ``silence`` или ``corrupt``.
     fault_requested = pyqtSignal(str)
 
-    _FAULTS = [
+    _FAULTS: ClassVar[tuple[tuple[str, str, str], ...]] = (
         ("Обрыв связи", "link", "Как при выдёргивании USB во время работы"),
         ("Молчание", "silence", "Порт открыт, но устройство не отвечает"),
         ("Помехи", "corrupt", "Несколько испорченных кадров подряд"),
-    ]
+    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Demo: имитация неисправностей", parent)

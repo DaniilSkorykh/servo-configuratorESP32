@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 import time
@@ -19,8 +20,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from servo_configurator.device import ServoDevice  # noqa: E402
-from servo_configurator.protocol import (  # noqa: E402
+from servo_configurator.device import ServoDevice
+from servo_configurator.protocol import (
     CommandError,
     CommandTimeout,
     DeviceState,
@@ -30,13 +31,24 @@ from servo_configurator.protocol import (  # noqa: E402
     TransportError,
     describe,
 )
-from servo_configurator.transport import (  # noqa: E402
+from servo_configurator.transport import (
     SerialTransport,
     SimulatedTransport,
 )
 
 _HOMING_WAIT_S = 20.0
 _MOVE_WAIT_S = 8.0
+
+
+def _use_utf8_console() -> None:
+    """Переводит вывод в UTF-8.
+
+    Консоль Windows по умолчанию работает в однобайтовой кодировке, в которой
+    нет ни тире, ни стрелок из сообщений сценария.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(AttributeError, OSError):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 class ScenarioRunner:
@@ -182,6 +194,7 @@ def run(runner: ScenarioRunner) -> None:
 
 
 def main(argv: list[str]) -> int:
+    _use_utf8_console()
     logging.basicConfig(
         level=logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",

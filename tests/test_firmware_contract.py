@@ -14,22 +14,23 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
 from servo_configurator.protocol import (
     CONFIG_VERSION,
-    Command,
-    DeviceError,
-    DeviceState,
-    HomingResult,
     PARAMS,
     PARAMS_BY_PATH,
     PROTOCOL_VERSION,
+    Command,
+    DeviceError,
+    DeviceState,
     Direction,
-    Event,
-    IntParam,
     EnumParam,
+    Event,
+    HomingResult,
+    IntParam,
 )
 
 FIRMWARE_ROOT = Path(__file__).resolve().parent.parent / "esp32"
@@ -97,7 +98,9 @@ class TestErrorCodes:
     #: Коды, которые прошивка обязана уметь возвращать. E_INTERNAL протоколом
     #: зарезервирован для непредвиденных сбоев и в рабочих путях не встречается,
     #: поэтому его отсутствие не считается ошибкой.
-    REQUIRED = [code for code in DeviceError if code is not DeviceError.INTERNAL]
+    REQUIRED: ClassVar[list[DeviceError]] = [
+        code for code in DeviceError if code is not DeviceError.INTERNAL
+    ]
 
     @pytest.mark.parametrize("code", REQUIRED, ids=lambda c: c.value)
     def test_device_error_codes_are_declared(self, controller_source, code):
@@ -177,7 +180,7 @@ class TestParameterDefaults:
         return defaults
 
     #: Имена полей прошивки отличаются стилем от путей схемы.
-    FIELD_TO_PATH = {
+    FIELD_TO_PATH: ClassVar[dict[str, str]] = {
         "homing.speed": "homing.speed",
         "homing.loadThreshold": "homing.load_threshold",
         "homing.timeoutMs": "homing.timeout_ms",

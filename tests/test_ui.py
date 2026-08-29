@@ -13,7 +13,6 @@ import pytest
 from servo_configurator.app import ServoService
 from servo_configurator.protocol import (
     DeviceState,
-    HomingResult,
     Telemetry,
     default_config,
 )
@@ -27,9 +26,11 @@ from servo_configurator.ui.widgets.telemetry_panel import TelemetryPanel
 
 def telemetry(**overrides) -> Telemetry:
     """Кадр телеметрии с разумными значениями по умолчанию."""
-    defaults = dict(seq=1, ts=1000, pos=2048, spd=500, load=120,
-                    volt=74, temp=31, cur=45, moving=True,
-                    state=DeviceState.POSITION, homed=True, err=None)
+    defaults = {
+        "seq": 1, "ts": 1000, "pos": 2048, "spd": 500, "load": 120,
+        "volt": 74, "temp": 31, "cur": 45, "moving": True,
+        "state": DeviceState.POSITION, "homed": True, "err": None,
+    }
     return Telemetry(**{**defaults, **overrides})
 
 

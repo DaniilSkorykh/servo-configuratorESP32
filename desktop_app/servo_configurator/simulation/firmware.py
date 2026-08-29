@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ..protocol import (
     CONFIG_VERSION,
+    PROTOCOL_VERSION,
     Command,
     DeviceError,
     DeviceState,
@@ -28,7 +30,6 @@ from ..protocol import (
     Event,
     HomingResult,
     LinkError,
-    PROTOCOL_VERSION,
     default_config,
     merge_config,
     validate_config,
@@ -314,7 +315,7 @@ class SimulatedFirmware:
 
         messages = [_event(Event.HOMING, {
             "result": str(result),
-            "pos": int(round(self.servo.position)),
+            "pos": round(self.servo.position),
             "elapsed_ms": elapsed,
             **({"err": error, "msg": message} if error else {}),
         })]

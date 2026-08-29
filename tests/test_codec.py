@@ -7,9 +7,9 @@ import json
 import pytest
 
 from servo_configurator.protocol import (
+    MAX_LINE_BYTES,
     Command,
     LineAssembler,
-    MAX_LINE_BYTES,
     Notification,
     ProtocolError,
     Request,

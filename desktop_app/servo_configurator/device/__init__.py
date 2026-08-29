@@ -5,8 +5,8 @@ from .servo_device import ServoDevice
 
 __all__ = [
     "DEFAULT_TIMEOUT",
-    "DeviceClient",
     "MAX_RETRIES",
     "NVS_TIMEOUT",
+    "DeviceClient",
     "ServoDevice",
 ]

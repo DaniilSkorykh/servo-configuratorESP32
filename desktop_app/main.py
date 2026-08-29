@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import sys
 from pathlib import Path
@@ -19,11 +20,11 @@ from pathlib import Path
 # репозитория, так и из каталога desktop_app.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication
 
-from servo_configurator import __version__  # noqa: E402
-from servo_configurator.protocol import Direction  # noqa: E402
-from servo_configurator.ui.main_window import MainWindow  # noqa: E402
+from servo_configurator import __version__
+from servo_configurator.protocol import Direction
+from servo_configurator.ui.main_window import MainWindow
 
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 
@@ -37,11 +38,10 @@ def configure_logging(verbose: bool, log_file: Path | None) -> None:
     сообщение читаемым даже там, где часть символов не отображается.
     """
     for stream in (sys.stdout, sys.stderr):
-        try:
+        # Поток может быть подменён или не поддерживать перенастройку —
+        # это не повод прерывать запуск.
+        with contextlib.suppress(AttributeError, OSError):
             stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, OSError):
-            # Поток подменён или не поддерживает перенастройку — не повод падать.
-            pass
 
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     if log_file is not None:

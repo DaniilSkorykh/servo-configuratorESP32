@@ -14,7 +14,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import gc
+import itertools
 import logging
 import statistics
 import threading
@@ -23,7 +25,6 @@ import tracemalloc
 
 import pytest
 
-from servo_configurator.app import ServoService
 from servo_configurator.device import ServoDevice
 from servo_configurator.protocol import (
     Command,
@@ -158,13 +159,13 @@ class TestTelemetryThroughput:
         numbers = [f.seq for f in frames]
         gaps = [
             (before, after)
-            for before, after in zip(numbers, numbers[1:])
+            for before, after in itertools.pairwise(numbers)
             if after != before + 1
         ]
         assert not gaps, f"потеряны кадры: {gaps[:5]}"
 
         expected = self.PERIOD_MS / 1000.0
-        intervals = [b - a for a, b in zip(arrival, arrival[1:])]
+        intervals = [b - a for a, b in itertools.pairwise(arrival)]
         median = statistics.median(intervals)
         assert median < expected * 2.5, f"медианный интервал {median * 1000:.1f} мс"
 
@@ -238,7 +239,7 @@ class TestCommandStorm:
                     value = config["homing"]["speed"]
                     with lock:
                         results.append(value)
-            except Exception as exc:  # noqa: BLE001 - собираем для отчёта
+            except Exception as exc:
                 with lock:
                     errors.append(exc)
 
@@ -266,7 +267,7 @@ class TestCommandStorm:
             while not stop_flag.is_set():
                 try:
                     device.read_config()
-                except Exception:  # noqa: BLE001 - поток гасится вместе с тестом
+                except Exception:
                     return
 
         device.motor_run(Direction.CCW, speed=600)
@@ -471,11 +472,9 @@ class TestChaos:
             device.set_telemetry(True, 50)
             for _ in range(150):
                 action = random.choice(actions)
-                try:
+                # Отказ по состоянию или диапазону — штатный ответ протокола.
+                with contextlib.suppress(CommandError, ValueError):
                     action()
-                except (CommandError, ValueError):
-                    # Отказ по состоянию или диапазону — штатный ответ протокола.
-                    pass
                 time.sleep(0.01)
 
             # Что бы ни происходило, устройство обязано остаться управляемым.
@@ -545,7 +544,7 @@ class TestUiUnderLoad:
         for _ in range(8):
             window = MainWindow()
             window.connection_panel.connect_requested.emit(None)
-            pump(5.0, until=lambda: window.manual_panel.move_button.isEnabled())
+            pump(5.0, until=lambda w=window: w.manual_panel.move_button.isEnabled())
             window.service.motor_run(Direction.CCW, 500)
             pump(0.3)
             window.close()

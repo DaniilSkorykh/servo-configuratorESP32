@@ -16,8 +16,9 @@ UI не знает ни о потоках, ни о протоколе: он по
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable
+from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 

@@ -10,9 +10,9 @@ from .simulated import SIMULATED_PORT, FaultInjection, SimulatedTransport, simul
 
 __all__ = [
     "DEFAULT_BAUDRATE",
+    "SIMULATED_PORT",
     "FaultInjection",
     "PortInfo",
-    "SIMULATED_PORT",
     "SerialTransport",
     "SimulatedTransport",
     "Transport",

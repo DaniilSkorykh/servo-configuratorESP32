@@ -148,7 +148,7 @@ class TestConfiguration:
 
     def test_local_validation_precedes_transmission(self, device):
         """Неверное значение объясняется сразу, а не кодом ошибки от устройства."""
-        with pytest.raises(ValueError, match="homing.speed"):
+        with pytest.raises(ValueError, match=r"homing\.speed"):
             device.write_config({"homing": {"speed": 99999}})
 
     def test_device_rejects_out_of_range_value(self, device):

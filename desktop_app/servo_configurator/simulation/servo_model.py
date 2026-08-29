@@ -178,15 +178,15 @@ class ServoModel:
         assert rng is not None
 
         load = self.load + rng.gauss(0.0, _LOAD_NOISE)
-        signed_load = int(round(load)) * (1 if self.velocity >= 0 else -1)
+        signed_load = round(load) * (1 if self.velocity >= 0 else -1)
 
         return {
-            "pos": int(round(self.position)) + rng.choice((-1, 0, 0, 0, 1)),
-            "spd": int(round(self.velocity)),
+            "pos": round(self.position) + rng.choice((-1, 0, 0, 0, 1)),
+            "spd": round(self.velocity),
             "load": max(-1000, min(1000, signed_load)),
             "volt": self.voltage_dv + rng.choice((-1, 0, 0, 1)),
             "temp": self.temperature_c,
-            "cur": int(round(abs(load) * _CURRENT_PER_LOAD)),
+            "cur": round(abs(load) * _CURRENT_PER_LOAD),
             "moving": abs(self.velocity) > _MOVING_THRESHOLD,
         }
 

@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ...protocol import EnumParam, IntParam, PARAMS_BY_PATH, get_value
+from ...protocol import PARAMS_BY_PATH, EnumParam, IntParam, get_value
 
 #: Подписи вариантов для полей с фиксированным набором значений.
 _CHOICE_LABELS = {

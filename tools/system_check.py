@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import gc
 import io
+import itertools
 import logging
 import statistics
 import sys
@@ -120,10 +121,10 @@ def measure_telemetry(duration: float, period_ms: int) -> Section:
     numbers = [f.seq for f in frames]
     lost = sum(
         after - before - 1
-        for before, after in zip(numbers, numbers[1:])
+        for before, after in itertools.pairwise(numbers)
         if after > before + 1
     )
-    intervals = [(b - a) * 1000 for a, b in zip(arrival, arrival[1:])]
+    intervals = [(b - a) * 1000 for a, b in itertools.pairwise(arrival)]
 
     rate = len(frames) / duration
     expected_rate = 1000 / period_ms
@@ -158,7 +159,7 @@ def measure_commands(count: int) -> Section:
             started = time.monotonic()
             try:
                 device.ping()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 failures += 1
             durations.append((time.monotonic() - started) * 1000)
         total = time.monotonic() - started_all
@@ -192,7 +193,7 @@ def measure_parallel(threads: int, per_thread: int) -> Section:
                 if config.get("homing", {}).get("speed") != 300:
                     with lock:
                         mismatches += 1
-            except Exception:  # noqa: BLE001
+            except Exception:
                 with lock:
                     errors += 1
 
@@ -301,7 +302,7 @@ def measure_faults() -> Section:
             try:
                 device.ping()
                 succeeded += 1
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             time.sleep(0.02)
     finally:
@@ -317,11 +318,11 @@ def measure_faults() -> Section:
         transport.faults.silent = True
         silent_ok = False
         try:
-            device._client.request(  # noqa: SLF001 - проверка таймаута
+            device._client.request(
                 __import__("servo_configurator.protocol", fromlist=["Command"]).Command.PING,
                 {}, timeout=0.3,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             silent_ok = True
 
         transport.faults.silent = False
@@ -366,7 +367,7 @@ def measure_ui(duration: float) -> Section:
         if not connected:
             return section
 
-        window.service._device.set_telemetry(True, 20)  # noqa: SLF001
+        window.service._device.set_telemetry(True, 20)
         window.service.motor_run(Direction.CCW, 600)
 
         delays: list[float] = []
@@ -385,10 +386,10 @@ def measure_ui(duration: float) -> Section:
                     f"p95 {percentile(delays, 0.95):.2f} мс · "
                     f"max {max(delays):.2f} мс",
                     "ok" if statistics.median(delays) < 20 else "warn")
-        points = len(window.charts_panel._buffers["pos"].data()[0])  # noqa: SLF001
+        points = len(window.charts_panel._buffers["pos"].data()[0])
         section.add("Точек на графике", f"{points}", "ok" if points > 100 else "warn")
         section.add("Показания телеметрии",
-                    f"позиция {window.telemetry_panel._values['pos'].text()}, "  # noqa: SLF001
+                    f"позиция {window.telemetry_panel._values['pos'].text()}, "
                     f"состояние отображается")
     finally:
         window.service.shutdown()

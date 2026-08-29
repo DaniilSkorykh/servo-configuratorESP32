@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
-from ..protocol import LinkError, LineAssembler, TransportError
+from ..protocol import LineAssembler, LinkError, TransportError
 from ..simulation.firmware import SimulatedFirmware
 from ..simulation.nvs import SimulatedNvs, default_nvs_path
 from .base import PortInfo, Transport

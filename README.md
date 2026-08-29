@@ -142,7 +142,7 @@ project/
 │       ├── app/                  сервисный слой между UI и устройством
 │       └── ui/                   окно и виджеты
 ├── esp32/                        прошивка (PlatformIO)
-├── tests/                        358 тестов
+├── tests/                        360 тестов
 ├── tools/system_check.py         измерения и отчёт о работоспособности
 ├── packaging/                    сборка исполняемого файла (PyInstaller)
 └── docs/                         PROTOCOL.md, SYSTEM_CHECK.md
@@ -320,8 +320,9 @@ pio run -t upload    # прошивка
 ## Тесты и проверка работоспособности
 
 ```bash
-pytest                    # 343 быстрых теста, ~45 с
+pytest                    # 345 быстрых тестов, ~50 с
 pytest -m slow            # 15 нагрузочных, ~90 с
+ruff check desktop_app tests tools          # статическая проверка
 python tools/system_check.py --report docs/SYSTEM_CHECK.md
 ```
 
