@@ -66,6 +66,7 @@ class ServoModel:
     commanded_speed: float = 1000.0
     load: float = 0.0
     stalled: bool = False
+    torque_enabled: bool = True
     _rng: random.Random | None = None
 
     def __post_init__(self) -> None:
@@ -76,6 +77,18 @@ class ServoModel:
     # ------------------------------------------------------------------
     # Команды
     # ------------------------------------------------------------------
+
+    def set_torque(self, enabled: bool) -> None:
+        """Включает или снимает момент удержания.
+
+        Со снятым моментом вал свободен: привод принимает команды, но не
+        двигается. Управляющая программа обязана включить момент перед
+        движением — так же, как это требуется реальному приводу.
+        """
+        self.torque_enabled = enabled
+        if not enabled:
+            self.mode = MotionMode.FREE
+            self.velocity = 0.0
 
     def move_to(self, position: float, speed: float) -> None:
         """Переводит привод в позиционный режим."""
@@ -95,6 +108,8 @@ class ServoModel:
         self.commanded_speed = 0.0
         self.target_position = self.position
         self.stalled = False
+        if release_torque:
+            self.torque_enabled = False
 
     def set_position_counter(self, position: float) -> None:
         """Назначает текущему физическому положению новое значение счётчика.
@@ -134,6 +149,10 @@ class ServoModel:
         self._update_load(dt, desired)
 
     def _desired_velocity(self) -> float:
+        if not self.torque_enabled:
+            # Момент снят: привод не создаёт усилия и не удерживает позицию.
+            return 0.0
+
         match self.mode:
             case MotionMode.WHEEL:
                 return self.commanded_speed

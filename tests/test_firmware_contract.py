@@ -245,6 +245,22 @@ class TestSafetyInvariants:
         body = controller_source.split("void Controller::finishHoming")[1][:800]
         assert "stopMotion" in body
 
+    @pytest.mark.parametrize(
+        "handler",
+        ["Controller::commandMoveTo", "Controller::commandMotorRun", "Controller::startHoming"],
+    )
+    def test_torque_is_restored_before_motion(self, controller_source, handler):
+        """Аварийный останов снимает момент; пуск движения обязан его вернуть.
+
+        Иначе привод примет команду, но останется свободным и не тронется —
+        расхождение, которое проявится только на оборудовании.
+        """
+        # Границей служит начало следующей функции: обработчик перемещения
+        # длинный из-за проверок аргументов, и фиксированное окно его обрезало бы.
+        body = controller_source.split(f"void {handler}")[1]
+        body = body.split("\nvoid Controller::")[0]
+        assert "setTorque" in body, f"{handler} не возвращает момент"
+
     def test_line_length_limit_matches_protocol(self):
         source = read("src", "main.cpp")
         match = re.search(r"MAX_LINE_LENGTH = (\d+)", source)

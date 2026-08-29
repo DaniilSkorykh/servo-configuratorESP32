@@ -264,6 +264,7 @@ class SimulatedFirmware:
         self._homing_start_position = self.servo.position
         self.homed = False
         sign = _DIRECTION_SIGN[Direction(homing["dir"])]
+        self.servo.set_torque(True)
         self.servo.run(sign * homing["speed"])
 
     def _advance_homing(self) -> list[str]:
@@ -496,6 +497,9 @@ class SimulatedFirmware:
         if not isinstance(speed, int) or isinstance(speed, bool) or speed <= 0:
             return [_failure(message_id, DeviceError.RANGE, "speed должен быть положительным")]
 
+        # Момент мог быть снят аварийным остановом: без его возврата привод
+        # примет команду, но не тронется.
+        self.servo.set_torque(True)
         self.servo.move_to(position, speed)
         self._target_position = float(position)
         self._overload_since_ms = None
@@ -515,6 +519,7 @@ class SimulatedFirmware:
         if not isinstance(speed, int) or isinstance(speed, bool) or speed <= 0:
             return [_failure(message_id, DeviceError.RANGE, "speed должен быть положительным")]
 
+        self.servo.set_torque(True)
         self.servo.run(_DIRECTION_SIGN[direction] * speed)
         messages = [_success(message_id, {"dir": str(direction), "speed": speed})]
         messages.extend(self._change_state(DeviceState.MOTOR))

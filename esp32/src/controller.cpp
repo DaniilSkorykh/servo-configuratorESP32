@@ -370,7 +370,10 @@ void Controller::commandMoveTo(uint32_t id, JsonObjectConst args) {
         return;
     }
 
-    if (!bus_.setMode(settings_.servoId, ServoMode::Position) ||
+    // Момент мог быть снят аварийным остановом: без его возврата привод примет
+    // команду, но останется свободным и не тронется с места.
+    if (!bus_.setTorque(settings_.servoId, true) ||
+        !bus_.setMode(settings_.servoId, ServoMode::Position) ||
         !bus_.moveTo(settings_.servoId, static_cast<uint16_t>(raw), speed)) {
         sendFailure(id, E_SERVO_TIMEOUT, "привод не принял команду");
         return;
@@ -405,7 +408,8 @@ void Controller::commandMotorRun(uint32_t id, JsonObjectConst args) {
     }
 
     const int sign = strcmp(direction, "cw") == 0 ? -1 : +1;
-    if (!bus_.setMode(settings_.servoId, ServoMode::Wheel) ||
+    if (!bus_.setTorque(settings_.servoId, true) ||
+        !bus_.setMode(settings_.servoId, ServoMode::Wheel) ||
         !bus_.runWheel(settings_.servoId, static_cast<int16_t>(sign * speed))) {
         sendFailure(id, E_SERVO_TIMEOUT, "привод не принял команду");
         return;
@@ -652,6 +656,7 @@ void Controller::startHoming() {
     homed_ = false;
 
     const int sign = directionSign(settings_.homing.direction);
+    bus_.setTorque(settings_.servoId, true);
     bus_.setMode(settings_.servoId, ServoMode::Wheel);
     bus_.runWheel(settings_.servoId, static_cast<int16_t>(sign * settings_.homing.speed));
 }

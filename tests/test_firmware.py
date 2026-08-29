@@ -348,6 +348,51 @@ class TestMotorMode:
         assert harness.send("move_to", pos=1000)["err"] == DeviceError.STATE
 
 
+class TestEmergencyStop:
+    """Аварийный останов снимает момент, но не должен запирать устройство."""
+
+    def test_releases_torque(self, harness):
+        harness.send("motor_run", dir="ccw", speed=500)
+        harness.run(500)
+        harness.send("stop", emergency=True)
+        assert harness.firmware.servo.torque_enabled is False
+
+    def test_state_returns_to_idle(self, harness):
+        harness.send("motor_run", dir="ccw", speed=500)
+        harness.send("stop", emergency=True)
+        assert harness.state is DeviceState.IDLE
+
+    def test_free_shaft_does_not_move(self, harness):
+        """Со снятым моментом привод не удерживает и не отрабатывает позицию."""
+        harness.send("stop", emergency=True)
+        position = harness.firmware.servo.position
+        harness.run(1000)
+        assert harness.firmware.servo.position == pytest.approx(position, abs=1)
+
+    def test_rotation_resumes_without_extra_reset(self, harness):
+        """Продолжить работу можно обычной командой движения, без сброса."""
+        harness.send("stop", emergency=True)
+        harness.send("motor_run", dir="ccw", speed=500)
+        harness.run(1000)
+        assert harness.firmware.servo.torque_enabled is True
+        assert abs(harness.firmware.servo.velocity) > 0
+
+    def test_positioning_resumes_after_emergency_stop(self, harness):
+        harness.send("home_start")
+        harness.run(12000)
+        harness.send("stop", emergency=True)
+
+        harness.send("move_to", pos=800)
+        harness.run(6000)
+        assert harness.firmware.servo.position == pytest.approx(800, abs=20)
+
+    def test_homing_resumes_after_emergency_stop(self, harness):
+        harness.send("stop", emergency=True)
+        harness.send("home_start")
+        harness.run(12000)
+        assert harness.firmware.homed is True
+
+
 class TestSafety:
     def test_overload_stops_the_drive(self, harness):
         """Упор при перемещении обязан приводить к остановке, а не к давлению в стену."""
