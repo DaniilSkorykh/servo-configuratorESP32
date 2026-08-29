@@ -20,7 +20,15 @@
 #include "settings.h"
 
 /// Состояния устройства (раздел 8 `docs/PROTOCOL.md`).
-enum class DeviceState : uint8_t { Idle, Homing, Position, Motor, Fault };
+enum class DeviceState : uint8_t {
+    Idle,
+    Homing,
+    Position,
+    Motor,
+    Fault,
+    /// Аварийный останов: движение запрещено до явного снятия оператором.
+    EStop,
+};
 
 /// Исход процедуры Homing.
 enum class HomingResult : uint8_t { Completed, Timeout, Aborted, Error };
@@ -57,6 +65,7 @@ class Controller {
     void commandMoveTo(uint32_t id, JsonObjectConst args);
     void commandMotorRun(uint32_t id, JsonObjectConst args);
     void commandStop(uint32_t id, JsonObjectConst args);
+    void commandReset(uint32_t id);
 
     // --- периодические проверки ---
     void pollFeedback();
@@ -69,7 +78,8 @@ class Controller {
     // --- вспомогательное ---
     bool stateAllows(const char *command, const char **reason) const;
     void startHoming();
-    void finishHoming(HomingResult result, const char *error, const char *message);
+    void finishHoming(HomingResult result, const char *error, const char *message,
+                      DeviceState nextState = DeviceState::Idle);
     void changeState(DeviceState next);
     void stopMotion(bool releaseTorque);
 

@@ -119,6 +119,7 @@ class HomingPanel(_ConfigPanel):
         self.abort_button = QPushButton("Прервать")
         self.abort_button.clicked.connect(self.abort_requested)
 
+        self._blocked = False
         self.result_label = QLabel("Не выполнялся")
         self.result_label.setWordWrap(True)
 
@@ -138,9 +139,16 @@ class HomingPanel(_ConfigPanel):
             self.start_button.setEnabled(connected)
             self.abort_button.setEnabled(False)
 
+    def set_blocked(self, blocked: bool) -> None:
+        """Запрещает запуск процедуры, пока активен аварийный останов."""
+        self._blocked = blocked
+        self.start_button.setEnabled(self._connected and not blocked)
+
     def set_running(self, running: bool) -> None:
         """Отражает выполнение процедуры."""
-        self.start_button.setEnabled(self._connected and not running)
+        self.start_button.setEnabled(
+            self._connected and not running and not self._blocked
+        )
         self.abort_button.setEnabled(running)
         if running:
             self._set_result("Running — идёт поиск упора", "#8a6d1f")

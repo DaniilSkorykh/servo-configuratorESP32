@@ -18,6 +18,7 @@ _STATE_LABELS = {
     DeviceState.POSITION: ("Position — перемещение", "#1f6f8a"),
     DeviceState.MOTOR: ("Motor — непрерывное вращение", "#1f6f8a"),
     DeviceState.FAULT: ("Fault — движение запрещено, нажмите СТОП для сброса", "#c0392b"),
+    DeviceState.ESTOP: ("АВАРИЙНЫЙ ОСТАНОВ — движение заблокировано", "#c0392b"),
 }
 
 _PLACEHOLDER = "—"

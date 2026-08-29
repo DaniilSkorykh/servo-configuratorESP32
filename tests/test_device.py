@@ -422,4 +422,5 @@ class TestConcurrency:
         thread.join(timeout=3.0)
 
         assert stopped.is_set()
-        assert transport.firmware.state is DeviceState.IDLE
+        # Аварийный останов запирает устройство, а не возвращает его в idle.
+        assert transport.firmware.state is DeviceState.ESTOP

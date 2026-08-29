@@ -156,6 +156,8 @@ void Controller::handleLine(const char *line, size_t length) {
         commandMotorRun(id, args);
     } else if (strcmp(command, "stop") == 0) {
         commandStop(id, args);
+    } else if (strcmp(command, "reset") == 0) {
+        commandReset(id);
     } else {
         sendFailure(id, E_UNKNOWN_CMD, command);
     }
@@ -165,8 +167,14 @@ bool Controller::stateAllows(const char *command, const char **reason) const {
     // Разрешены всегда, включая состояние fault: без них устройство,
     // сообщившее об ошибке, стало бы неуправляемым.
     if (strcmp(command, "ping") == 0 || strcmp(command, "get_config") == 0 ||
-        strcmp(command, "telemetry") == 0 || strcmp(command, "stop") == 0) {
+        strcmp(command, "telemetry") == 0 || strcmp(command, "stop") == 0 ||
+        strcmp(command, "reset") == 0) {
         return true;
+    }
+
+    if (state_ == DeviceState::EStop) {
+        *reason = "активен аварийный останов, движение запрещено до снятия";
+        return false;
     }
 
     if (state_ == DeviceState::Fault) {
@@ -431,17 +439,44 @@ void Controller::commandStop(uint32_t id, JsonObjectConst args) {
     stopMotion(emergency);
     error_ = nullptr;
 
+    // Аварийный останов запирает устройство до явного снятия. Обычный stop,
+    // поданный при активном останове, не снимает его: иначе блокировка
+    // обходилась бы случайным нажатием соседней кнопки.
+    DeviceState target = DeviceState::Idle;
+    if (emergency || state_ == DeviceState::EStop) {
+        target = DeviceState::EStop;
+    }
+
     JsonDocument data;
-    data["state"] = stateName(DeviceState::Idle);
+    data["state"] = stateName(target);
     sendSuccess(id, data);
 
     if (wasHoming) {
         // Прерванная процедура обязана сообщить исход, иначе интерфейс
         // останется с индикацией «выполняется».
-        finishHoming(HomingResult::Aborted, nullptr, nullptr);
+        finishHoming(HomingResult::Aborted, nullptr, nullptr, target);
     } else {
-        changeState(DeviceState::Idle);
+        changeState(target);
     }
+}
+
+void Controller::commandReset(uint32_t id) {
+    // Снятие аварийного останова — отдельная команда, а не разновидность stop:
+    // это осознанное действие оператора, подтверждающее, что причина устранена
+    // и приводить механизм в движение безопасно.
+    if (state_ != DeviceState::EStop) {
+        sendFailure(id, E_STATE, "аварийный останов не активен");
+        return;
+    }
+
+    // Момент возвращается сразу: после снятия привод снова удерживает позицию.
+    bus_.setTorque(settings_.servoId, true);
+    error_ = nullptr;
+
+    JsonDocument data;
+    data["state"] = stateName(DeviceState::Idle);
+    sendSuccess(id, data);
+    changeState(DeviceState::Idle);
 }
 
 // ---------------------------------------------------------------------------
@@ -661,7 +696,8 @@ void Controller::startHoming() {
     bus_.runWheel(settings_.servoId, static_cast<int16_t>(sign * settings_.homing.speed));
 }
 
-void Controller::finishHoming(HomingResult result, const char *error, const char *message) {
+void Controller::finishHoming(HomingResult result, const char *error, const char *message,
+                              DeviceState nextState) {
     // Привод останавливается при любом исходе, включая ошибочный.
     stopMotion(false);
 
@@ -687,7 +723,7 @@ void Controller::finishHoming(HomingResult result, const char *error, const char
         if (result == HomingResult::Completed) {
             error_ = nullptr;
         }
-        changeState(DeviceState::Idle);
+        changeState(nextState);
     } else {
         error_ = error;
         changeState(DeviceState::Fault);
@@ -738,6 +774,7 @@ const char *Controller::stateName(DeviceState state) {
         case DeviceState::Position: return "position";
         case DeviceState::Motor: return "motor";
         case DeviceState::Fault: return "fault";
+        case DeviceState::EStop: return "estop";
     }
     return "fault";
 }

@@ -309,8 +309,13 @@ class SimulatedFirmware:
         result: HomingResult,
         error: str | None = None,
         message: str = "",
+        next_state: DeviceState = DeviceState.IDLE,
     ) -> list[str]:
-        """Завершает Homing, всегда останавливая привод."""
+        """Завершает Homing, всегда останавливая привод.
+
+        :param next_state: куда перейти при успехе или отмене. Отличается от
+            ``idle``, когда процедуру прервал аварийный останов.
+        """
         self.servo.stop()
         elapsed = self._now_ms - self._homing_started_ms
 
@@ -323,9 +328,9 @@ class SimulatedFirmware:
 
         if result is HomingResult.COMPLETED:
             self.error = None
-            messages.extend(self._change_state(DeviceState.IDLE))
+            messages.extend(self._change_state(next_state))
         elif result is HomingResult.ABORTED:
-            messages.extend(self._change_state(DeviceState.IDLE))
+            messages.extend(self._change_state(next_state))
         else:
             self.error = error
             messages.extend(self._change_state(DeviceState.FAULT))
@@ -375,6 +380,9 @@ class SimulatedFirmware:
         """Проверяет допустимость команды в текущем состоянии (раздел 8)."""
         if command in _ALWAYS_ALLOWED:
             return None
+
+        if self.state is DeviceState.ESTOP:
+            return "активен аварийный останов, движение запрещено до снятия"
 
         if self.state is DeviceState.FAULT:
             return f"устройство в состоянии fault, требуется stop (ошибка: {self.error})"
@@ -531,15 +539,45 @@ class SimulatedFirmware:
 
         was_homing = self.state is DeviceState.HOMING
         self.error = None
-        messages = [_success(message_id, {"state": str(DeviceState.IDLE)})]
+
+        # Аварийный останов запирает устройство: движение остаётся запрещённым,
+        # пока оператор явно не снимет останов командой reset.
+        #
+        # Обычный stop, поданный при активном останове, не снимает его: иначе
+        # блокировка обходилась бы случайным нажатием соседней кнопки, и весь
+        # её смысл терялся бы.
+        if emergency or self.state is DeviceState.ESTOP:
+            target = DeviceState.ESTOP
+        else:
+            target = DeviceState.IDLE
+        messages = [_success(message_id, {"state": str(target)})]
 
         if was_homing:
             # Прерванный командой stop Homing обязан сообщить свой исход: иначе UI
             # остался бы с индикацией «выполняется» без завершающего события.
-            messages.extend(self._finish_homing(HomingResult.ABORTED))
+            messages.extend(self._finish_homing(HomingResult.ABORTED, next_state=target))
         else:
-            messages.extend(self._change_state(DeviceState.IDLE))
+            messages.extend(self._change_state(target))
 
+        return messages
+
+    def _cmd_reset(self, message_id: int, args: dict[str, Any]) -> list[str]:
+        """Снимает аварийный останов.
+
+        Отдельная команда, а не разновидность ``stop``: снятие аварийного
+        останова — осознанное действие оператора, подтверждающее, что причина
+        устранена и приводить механизм в движение безопасно.
+        """
+        if self.state is not DeviceState.ESTOP:
+            return [_failure(message_id, DeviceError.STATE, "аварийный останов не активен")]
+
+        # Момент возвращается сразу: после снятия останова привод снова
+        # удерживает позицию, а не остаётся свободным.
+        self.servo.set_torque(True)
+        self.error = None
+
+        messages = [_success(message_id, {"state": str(DeviceState.IDLE)})]
+        messages.extend(self._change_state(DeviceState.IDLE))
         return messages
 
     # ------------------------------------------------------------------
@@ -559,6 +597,7 @@ _ALWAYS_ALLOWED = frozenset({
     Command.GET_CONFIG,
     Command.TELEMETRY,
     Command.STOP,
+    Command.RESET,
 })
 
 

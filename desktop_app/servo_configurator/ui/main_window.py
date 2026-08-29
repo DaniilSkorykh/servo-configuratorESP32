@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         self.manual_panel.move_requested.connect(self.service.move_to)
         self.manual_panel.motor_requested.connect(self._on_motor_requested)
         self.manual_panel.stop_requested.connect(self._on_stop_requested)
+        self.manual_panel.reset_requested.connect(self._on_reset_requested)
 
         self.demo_faults.fault_requested.connect(self._on_demo_fault)
 
@@ -176,6 +177,8 @@ class MainWindow(QMainWindow):
         self.telemetry_panel.show_state(state)
         self.homing_panel.set_running(state is DeviceState.HOMING)
         self.manual_panel.set_fault(state is DeviceState.FAULT)
+        self.manual_panel.set_emergency(state is DeviceState.ESTOP)
+        self.homing_panel.set_blocked(state is DeviceState.ESTOP)
 
     def _on_homing_finished(self, result: str, position: int, elapsed_ms: int) -> None:
         self.homing_panel.set_running(False)
@@ -243,6 +246,21 @@ class MainWindow(QMainWindow):
 
     def _on_stop_requested(self, emergency: bool) -> None:
         self.service.stop(emergency=emergency)
+
+    def _on_reset_requested(self) -> None:
+        # Снятие аварийного останова подтверждается: после него механизм снова
+        # сможет тронуться, и оператор должен убедиться, что это безопасно.
+        answer = QMessageBox.question(
+            self,
+            "Снятие аварийного останова",
+            "Убедитесь, что причина остановки устранена, "
+            "а в зоне движения механизма никого нет.\n\n"
+            "Снять аварийный останов и разблокировать движение?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.service.reset_emergency()
 
     def _on_demo_fault(self, kind: str) -> None:
         """Имитация неисправностей в режиме симуляции."""

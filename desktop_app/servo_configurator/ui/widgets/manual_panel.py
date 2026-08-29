@@ -40,6 +40,18 @@ QPushButton:disabled { background-color: #d8a49e; }
 QPushButton:hover:!disabled { background-color: #a93226; }
 """
 
+#: Стиль той же кнопки, когда останов уже активен и её роль — снятие.
+_RESET_STYLE = """
+QPushButton {
+    background-color: #f0ad4e;
+    color: #2b2b2b;
+    font-weight: bold;
+    padding: 10px;
+    border: 2px solid #c0392b;
+}
+QPushButton:hover { background-color: #ec971f; }
+"""
+
 
 class ManualPanel(QGroupBox):
     """Ручная проверка настроек без сторонних утилит (п. 4.5 задания)."""
@@ -47,6 +59,7 @@ class ManualPanel(QGroupBox):
     move_requested = pyqtSignal(int, int)      # позиция, скорость
     motor_requested = pyqtSignal(object, int)  # направление, скорость
     stop_requested = pyqtSignal(bool)          # аварийный останов
+    reset_requested = pyqtSignal()             # снятие аварийного останова
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Ручное управление", parent)
@@ -84,10 +97,17 @@ class ManualPanel(QGroupBox):
         self.stop_button = QPushButton("СТОП")
         self.stop_button.clicked.connect(lambda: self.stop_requested.emit(False))
 
+        #: Доступность органов управления определяется двумя условиями сразу,
+        #: поэтому оба состояния хранятся, а применяются одним методом.
+        self._connected = False
+        self._emergency_active = False
+
         self.emergency_button = QPushButton("АВАРИЙНЫЙ ОСТАНОВ")
-        self.emergency_button.setToolTip("Немедленно остановить привод и снять момент")
+        self.emergency_button.setToolTip(
+            "Немедленно остановить привод, снять момент и заблокировать движение"
+        )
         self.emergency_button.setStyleSheet(_EMERGENCY_STYLE)
-        self.emergency_button.clicked.connect(lambda: self.stop_requested.emit(True))
+        self.emergency_button.clicked.connect(self._on_emergency_clicked)
 
         position_row = QHBoxLayout()
         position_row.addWidget(QLabel("Позиция:"))
@@ -116,12 +136,50 @@ class ManualPanel(QGroupBox):
     # ------------------------------------------------------------------
 
     def set_connected(self, connected: bool) -> None:
-        for widget in (
-            self.position_spin, self.position_slider, self.speed_spin,
-            self.move_button, self.cw_button, self.ccw_button,
-            self.stop_button, self.emergency_button,
-        ):
-            widget.setEnabled(connected)
+        self._connected = connected
+        if not connected:
+            self._emergency_active = False
+        self._apply_enabled()
+        self._update_emergency_button()
+
+    def set_emergency(self, active: bool) -> None:
+        """Отражает состояние аварийного останова.
+
+        Пока останов активен, органы управления движением недоступны, а кнопка
+        меняет роль на снятие. Смысл аварийного останова в том и состоит, что
+        механизм не может тронуться, пока оператор не подтвердит безопасность:
+        интерфейс не должен оставлять возможности сделать это по случайности.
+        """
+        self._emergency_active = active
+        self._apply_enabled()
+        self._update_emergency_button()
+
+    def _apply_enabled(self) -> None:
+        """Применяет доступность органов управления.
+
+        Команды движения требуют и подключения, и снятого аварийного останова;
+        останов и его снятие доступны при одном лишь подключении.
+        """
+        motion_allowed = self._connected and not self._emergency_active
+
+        for widget in (self.move_button, self.cw_button, self.ccw_button,
+                       self.position_spin, self.position_slider, self.speed_spin):
+            widget.setEnabled(motion_allowed)
+
+        for widget in (self.stop_button, self.emergency_button):
+            widget.setEnabled(self._connected)
+
+    def _update_emergency_button(self) -> None:
+        active = self._emergency_active
+        self.emergency_button.setText(
+            "СНЯТЬ АВАРИЙНЫЙ ОСТАНОВ" if active else "АВАРИЙНЫЙ ОСТАНОВ"
+        )
+        self.emergency_button.setStyleSheet(_RESET_STYLE if active else _EMERGENCY_STYLE)
+        self.emergency_button.setToolTip(
+            "Разблокировать движение после устранения причины"
+            if active
+            else "Немедленно остановить привод, снять момент и заблокировать движение"
+        )
 
     def set_fault(self, in_fault: bool) -> None:
         """Отражает состояние отказа.
@@ -152,6 +210,12 @@ class ManualPanel(QGroupBox):
         """Подставляет рабочую скорость из конфигурации, пока её не правили."""
         if not self.speed_spin.hasFocus():
             self.speed_spin.setValue(speed)
+
+    def _on_emergency_clicked(self) -> None:
+        if self._emergency_active:
+            self.reset_requested.emit()
+        else:
+            self.stop_requested.emit(True)
 
     def _on_move_clicked(self) -> None:
         self.move_requested.emit(self.position_spin.value(), self.speed_spin.value())

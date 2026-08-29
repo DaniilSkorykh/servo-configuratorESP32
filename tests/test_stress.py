@@ -285,7 +285,8 @@ class TestCommandStorm:
             worker.join(timeout=10)
         device.disconnect()
 
-        assert transport.firmware.state is DeviceState.IDLE
+        # Аварийный останов запирает устройство до явного снятия.
+        assert transport.firmware.state is DeviceState.ESTOP
         assert elapsed < 1.5, f"останов занял {elapsed:.2f} с под нагрузкой"
 
 
@@ -462,6 +463,7 @@ class TestChaos:
             lambda: device.motor_run(Direction.CCW, 400),
             lambda: device.stop(),
             lambda: device.stop(emergency=True),
+            lambda: device.reset(),
             lambda: device.start_homing(),
             lambda: device.abort_homing(),
             lambda: device.move_to(1500),
@@ -478,7 +480,11 @@ class TestChaos:
                 time.sleep(0.01)
 
             # Что бы ни происходило, устройство обязано остаться управляемым.
+            # Аварийный останов мог сработать в случайном порядке команд, и
+            # выход из него возможен только явным снятием.
             device.stop()
+            if transport.firmware.state is DeviceState.ESTOP:
+                device.reset()
             assert transport.firmware.state is DeviceState.IDLE
             assert device.ping()["proto"] == 1
         finally:

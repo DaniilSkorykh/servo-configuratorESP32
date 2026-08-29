@@ -349,18 +349,21 @@ class TestMotorMode:
 
 
 class TestEmergencyStop:
-    """Аварийный останов снимает момент, но не должен запирать устройство."""
+    """Аварийный останов запирает устройство до явного снятия оператором.
 
-    def test_releases_torque(self, harness):
+    Поведение повторяет промышленную кнопку аварийного останова: механизм не
+    может тронуться, пока её не разблокируют осознанным действием.
+    """
+
+    def test_enters_dedicated_state(self, harness):
         harness.send("motor_run", dir="ccw", speed=500)
         harness.run(500)
         harness.send("stop", emergency=True)
-        assert harness.firmware.servo.torque_enabled is False
+        assert harness.state is DeviceState.ESTOP
 
-    def test_state_returns_to_idle(self, harness):
-        harness.send("motor_run", dir="ccw", speed=500)
+    def test_releases_torque(self, harness):
         harness.send("stop", emergency=True)
-        assert harness.state is DeviceState.IDLE
+        assert harness.firmware.servo.torque_enabled is False
 
     def test_free_shaft_does_not_move(self, harness):
         """Со снятым моментом привод не удерживает и не отрабатывает позицию."""
@@ -369,28 +372,63 @@ class TestEmergencyStop:
         harness.run(1000)
         assert harness.firmware.servo.position == pytest.approx(position, abs=1)
 
-    def test_rotation_resumes_without_extra_reset(self, harness):
-        """Продолжить работу можно обычной командой движения, без сброса."""
+    def test_drive_stops_immediately(self, harness):
+        harness.send("motor_run", dir="ccw", speed=800)
+        harness.run(500)
         harness.send("stop", emergency=True)
+        assert harness.firmware.servo.velocity == 0.0
+
+    @pytest.mark.parametrize("command,args", [
+        ("motor_run", {"dir": "ccw", "speed": 500}),
+        ("move_to", {"pos": 1000}),
+        ("home_start", {}),
+    ])
+    def test_motion_is_blocked(self, harness, command, args):
+        harness.send("stop", emergency=True)
+        assert harness.send(command, **args)["err"] == DeviceError.STATE
+
+    def test_plain_stop_does_not_release(self, harness):
+        """Обычный СТОП не должен снимать блокировку — иначе она бессмысленна."""
+        harness.send("stop", emergency=True)
+        harness.send("stop")
+        assert harness.state is DeviceState.ESTOP
+
+    @pytest.mark.parametrize("command", ["ping", "get_config", "telemetry"])
+    def test_service_commands_still_work(self, harness, command):
+        harness.send("stop", emergency=True)
+        assert harness.send(command)["ok"] is True
+
+    def test_reset_releases_and_restores_torque(self, harness):
+        harness.send("stop", emergency=True)
+        assert harness.send("reset")["ok"] is True
+        assert harness.state is DeviceState.IDLE
+        assert harness.firmware.servo.torque_enabled is True
+
+    def test_motion_resumes_after_reset(self, harness):
+        harness.send("stop", emergency=True)
+        harness.send("reset")
         harness.send("motor_run", dir="ccw", speed=500)
         harness.run(1000)
-        assert harness.firmware.servo.torque_enabled is True
         assert abs(harness.firmware.servo.velocity) > 0
 
-    def test_positioning_resumes_after_emergency_stop(self, harness):
-        harness.send("home_start")
-        harness.run(12000)
+    def test_homing_resumes_after_reset(self, harness):
         harness.send("stop", emergency=True)
-
-        harness.send("move_to", pos=800)
-        harness.run(6000)
-        assert harness.firmware.servo.position == pytest.approx(800, abs=20)
-
-    def test_homing_resumes_after_emergency_stop(self, harness):
-        harness.send("stop", emergency=True)
+        harness.send("reset")
         harness.send("home_start")
         harness.run(12000)
         assert harness.firmware.homed is True
+
+    def test_reset_without_emergency_is_rejected(self, harness):
+        assert harness.send("reset")["err"] == DeviceError.STATE
+
+    def test_emergency_stop_during_homing_reports_result(self, harness):
+        harness.send("home_start")
+        harness.run(500)
+        harness.send("stop", emergency=True)
+
+        (result,) = harness.events_named("homing")
+        assert result["result"] == HomingResult.ABORTED
+        assert harness.state is DeviceState.ESTOP
 
 
 class TestSafety:

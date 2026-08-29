@@ -292,12 +292,45 @@ class TestScenario:
         pump(0.5)
         assert not connected.manual_panel.stop_button.styleSheet(), "выделение не снято"
 
-    def test_emergency_stop(self, connected, pump):
+    def test_emergency_stop_locks_the_device(self, connected, pump):
+        """Аварийный останов блокирует движение до явного снятия."""
         connected.manual_panel.ccw_button.click()
         pump(2.0, until=lambda: _state(connected) is DeviceState.MOTOR)
 
         connected.manual_panel.emergency_button.click()
+        assert pump(3.0, until=lambda: _state(connected) is DeviceState.ESTOP)
+        pump(0.3)
+
+        panel = connected.manual_panel
+        assert not panel.ccw_button.isEnabled()
+        assert not panel.move_button.isEnabled()
+        assert not connected.homing_panel.start_button.isEnabled()
+        assert panel.emergency_button.text() == "СНЯТЬ АВАРИЙНЫЙ ОСТАНОВ"
+        # Останов остаётся доступным: повторное нажатие не должно быть заблокировано.
+        assert panel.stop_button.isEnabled()
+
+    def test_plain_stop_does_not_release_emergency(self, connected, pump):
+        connected.manual_panel.emergency_button.click()
+        assert pump(3.0, until=lambda: _state(connected) is DeviceState.ESTOP)
+
+        connected.manual_panel.stop_button.click()
+        pump(1.0)
+        assert _state(connected) is DeviceState.ESTOP
+
+    def test_reset_releases_emergency(self, connected, pump):
+        connected.manual_panel.emergency_button.click()
+        assert pump(3.0, until=lambda: _state(connected) is DeviceState.ESTOP)
+
+        # Диалог подтверждения обходится: проверяется поведение после согласия.
+        connected.service.reset_emergency()
         assert pump(3.0, until=lambda: _state(connected) is DeviceState.IDLE)
+        pump(0.3)
+
+        assert connected.manual_panel.ccw_button.isEnabled()
+        assert connected.manual_panel.emergency_button.text() == "АВАРИЙНЫЙ ОСТАНОВ"
+
+        connected.manual_panel.ccw_button.click()
+        assert pump(3.0, until=lambda: _state(connected) is DeviceState.MOTOR)
 
     def test_write_and_save_configuration(self, connected, pump):
         form = connected.operating_panel.form

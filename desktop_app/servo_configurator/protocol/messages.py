@@ -32,6 +32,7 @@ class Command(StrEnum):
     MOVE_TO = "move_to"
     MOTOR_RUN = "motor_run"
     STOP = "stop"
+    RESET = "reset"
 
 
 #: Команды, безопасные для автоматического повтора после таймаута.
@@ -72,6 +73,8 @@ class DeviceState(StrEnum):
     POSITION = "position"
     MOTOR = "motor"
     FAULT = "fault"
+    ESTOP = "estop"
+    """Аварийный останов: движение запрещено до явного снятия оператором."""
 
 
 class HomingResult(StrEnum):

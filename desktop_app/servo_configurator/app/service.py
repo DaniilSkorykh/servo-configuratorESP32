@@ -285,6 +285,18 @@ class ServoService(QObject):
                      lambda _: self.status_message.emit(f"{label} выполнен"),
                      title=label, urgent=True)
 
+    def reset_emergency(self) -> None:
+        """Снимает аварийный останов."""
+        def task() -> None:
+            self._require_device().reset()
+
+        self._submit(
+            task,
+            lambda _: self.status_message.emit("Аварийный останов снят"),
+            title="Снятие аварийного останова",
+            urgent=True,
+        )
+
     # ------------------------------------------------------------------
     # Завершение работы
     # ------------------------------------------------------------------
