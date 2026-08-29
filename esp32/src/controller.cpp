@@ -602,7 +602,7 @@ void Controller::checkLinkWatchdog() {
 
     JsonDocument data;
     data["err"] = E_LINK_TIMEOUT;
-    data["msg"] = "нет связи с ПК, привод остановлен";
+    data["msg"] = "команды от ПК не поступали дольше допустимого, привод остановлен";
     sendEvent("error", data);
 }
 

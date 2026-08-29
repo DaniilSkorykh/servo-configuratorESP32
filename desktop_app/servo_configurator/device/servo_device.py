@@ -21,6 +21,7 @@ from ..protocol import (
     Event,
     Notification,
     Telemetry,
+    TransportError,
     validate_config,
 )
 from ..transport.base import Transport
@@ -37,6 +38,14 @@ _MIN_SILENCE_TIMEOUT = 0.5
 #: (``safety.link_timeout_ms`` = 1000 мс), чтобы одна пропущенная посылка не
 #: приводила к аварийной остановке привода.
 _KEEPALIVE_INTERVAL = 0.3
+
+#: Таймаут фонового ``ping``, с.
+#:
+#: Заметно меньше обычного таймаута команды: если ответ потерялся, ожидание
+#: целой секунды означало бы, что следующая посылка уйдёт в порт как раз тогда,
+#: когда устройство уже сочло ПК замолчавшим. Короткое ожидание сохраняет
+#: интервал между посылками много меньше порога watchdog.
+_KEEPALIVE_TIMEOUT = 0.25
 
 
 class ServoDevice:
@@ -155,17 +164,35 @@ class ServoDevice:
             thread.join(timeout=2.0)
 
     def _keepalive_loop(self) -> None:
+        """Поддерживает канал живым, пока соединение открыто.
+
+        Единичная неудача не прекращает работу: ответ мог потеряться из-за
+        помех в линии, а прекращение опроса означало бы, что устройство через
+        секунду посчитает ПК отключившимся и остановит привод посреди штатного
+        движения. Опрос прекращается только вместе с соединением.
+        """
+        failures = 0
         while not self._keepalive_stop.wait(_KEEPALIVE_INTERVAL):
             if not self._client.is_connected:
                 return
             if self._client.seconds_since_write < _KEEPALIVE_INTERVAL:
                 continue
+
             try:
-                self.ping()
-            except Exception:
-                # Обрыв обнаружит поток чтения; здесь достаточно прекратить опрос.
-                logger.debug("keepalive прерван", exc_info=True)
+                self._client.request(Command.PING, timeout=_KEEPALIVE_TIMEOUT)
+            except TransportError:
+                # Канал закрыт: обрыв уже обработан потоком чтения.
                 return
+            except Exception:
+                failures += 1
+                # О помехах сообщаем один раз, чтобы не заливать журнал.
+                if failures == 1:
+                    logger.warning("нет ответа на фоновый запрос, попытки продолжаются")
+                continue
+
+            if failures:
+                logger.info("фоновый обмен восстановлен после %d неудач", failures)
+                failures = 0
 
     # ------------------------------------------------------------------
     # Сервисные команды

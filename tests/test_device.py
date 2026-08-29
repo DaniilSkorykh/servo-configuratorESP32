@@ -266,6 +266,40 @@ class TestMotion:
         time.sleep(1.5)
         assert transport.firmware.state is DeviceState.MOTOR
 
+    def test_stop_is_retried_when_answer_is_lost(self, device, transport):
+        """Потерянный ответ на остановку не должен выглядеть отказом.
+
+        Повторное исполнение stop безвредно — привод уже стоит, — а вот
+        сообщение об ошибке в момент, когда оператор останавливает движение,
+        недопустимо.
+        """
+        device.motor_run(Direction.CCW, speed=500)
+
+        # Ближайшие кадры портятся: первый ответ на stop до клиента не дойдёт.
+        transport.faults.corrupt_frames = 2
+        device.stop()
+
+        assert transport.firmware.state is DeviceState.IDLE
+
+    def test_keepalive_survives_lost_answers(self, device, transport):
+        """Помехи не должны прекращать фоновый обмен.
+
+        Прекращение означало бы, что устройство через секунду сочтёт ПК
+        отключившимся и остановит привод посреди штатного движения.
+        """
+        device.motor_run(Direction.CCW, speed=400)
+
+        # Помехи идут непрерывно, но не сплошь: часть посылок проходит.
+        deadline = time.monotonic() + 2.5
+        while time.monotonic() < deadline:
+            transport.faults.corrupt_frames = 1
+            time.sleep(0.3)
+
+        transport.faults.corrupt_frames = 0
+        time.sleep(0.3)
+        assert transport.firmware.state is DeviceState.MOTOR, "привод остановлен watchdog"
+        device.stop()
+
     def test_emergency_stop_releases_torque(self, device, transport):
         device.motor_run(Direction.CW, speed=600)
         device.stop(emergency=True)

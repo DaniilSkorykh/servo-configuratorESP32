@@ -233,7 +233,7 @@ class SimulatedFirmware:
         messages = self._change_state(DeviceState.FAULT)
         messages.append(_event(Event.ERROR, {
             "err": LinkError.LINK_TIMEOUT,
-            "msg": "нет связи с ПК, привод остановлен",
+            "msg": "команды от ПК не поступали дольше допустимого, привод остановлен",
         }))
         return messages
 
