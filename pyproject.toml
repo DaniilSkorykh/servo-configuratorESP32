@@ -1,6 +1,13 @@
 [tool.pytest.ini_options]
 pythonpath = ["desktop_app"]
 testpaths = ["tests"]
+# Нагрузочные тесты идут минуты, поэтому в обычный прогон не входят:
+#   pytest           быстрая проверка
+#   pytest -m slow   нагрузочные
+addopts = "-m 'not slow'"
+markers = [
+    "slow: нагрузочные и длительные проверки",
+]
 
 [tool.ruff]
 line-length = 100
