@@ -17,6 +17,17 @@ from PyQt6.QtWidgets import (
 
 from ...protocol import Direction
 
+#: Стиль кнопки СТОП, когда устройство в состоянии Fault: выход из него возможен
+#: только этой командой, поэтому она должна бросаться в глаза.
+_STOP_HIGHLIGHT_STYLE = """
+QPushButton {
+    background-color: #f0ad4e;
+    font-weight: bold;
+    border: 2px solid #c0392b;
+    padding: 6px;
+}
+"""
+
 #: Стиль кнопки аварийного останова: она должна находиться взглядом мгновенно.
 _EMERGENCY_STYLE = """
 QPushButton {
@@ -111,6 +122,19 @@ class ManualPanel(QGroupBox):
             self.stop_button, self.emergency_button,
         ):
             widget.setEnabled(connected)
+
+    def set_fault(self, in_fault: bool) -> None:
+        """Отражает состояние отказа.
+
+        Выход из ``fault`` возможен только командой ``stop``, поэтому кнопка
+        подсвечивается: иначе пользователь видит остановившийся привод и
+        неактивные команды движения, но не понимает, что делать дальше.
+        """
+        self.stop_button.setStyleSheet(_STOP_HIGHLIGHT_STYLE if in_fault else "")
+        self.stop_button.setToolTip(
+            "Устройство остановлено из-за ошибки — нажмите, чтобы сбросить её"
+            if in_fault else "Остановить текущее движение"
+        )
 
     def set_position_range(self, minimum: int, maximum: int) -> None:
         """Ограничивает ввод настроенным рабочим диапазоном.

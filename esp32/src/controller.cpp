@@ -578,7 +578,7 @@ void Controller::checkOverload() {
 
     JsonDocument data;
     data["err"] = E_SERVO_ERROR;
-    data["msg"] = "нагрузка превысила предел, привод остановлен";
+    data["msg"] = "нагрузка превышена — вероятно, достигнут механический упор";
     sendEvent("error", data);
 }
 

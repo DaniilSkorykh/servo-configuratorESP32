@@ -17,7 +17,7 @@ _STATE_LABELS = {
     DeviceState.HOMING: ("Homing — поиск упора", "#8a6d1f"),
     DeviceState.POSITION: ("Position — перемещение", "#1f6f8a"),
     DeviceState.MOTOR: ("Motor — непрерывное вращение", "#1f6f8a"),
-    DeviceState.FAULT: ("Fault — ошибка, требуется СТОП", "#c0392b"),
+    DeviceState.FAULT: ("Fault — движение запрещено, нажмите СТОП для сброса", "#c0392b"),
 }
 
 _PLACEHOLDER = "—"

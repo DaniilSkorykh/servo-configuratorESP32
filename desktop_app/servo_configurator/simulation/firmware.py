@@ -211,7 +211,7 @@ class SimulatedFirmware:
         messages = self._change_state(DeviceState.FAULT)
         messages.append(_event(Event.ERROR, {
             "err": DeviceError.SERVO_ERROR,
-            "msg": f"нагрузка превысила предел {limit}, привод остановлен",
+            "msg": f"нагрузка {limit} превышена — вероятно, достигнут механический упор",
         }))
         return messages
 

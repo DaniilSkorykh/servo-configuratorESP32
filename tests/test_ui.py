@@ -276,6 +276,22 @@ class TestScenario:
         connected.manual_panel.stop_button.click()
         assert pump(3.0, until=lambda: _state(connected) is DeviceState.IDLE)
 
+    def test_fault_state_points_to_the_stop_button(self, connected, pump):
+        """Из состояния отказа должно быть видно, что делать дальше."""
+        # Вращение до механического упора модели: сработает защита по нагрузке.
+        connected.manual_panel.ccw_button.click()
+        assert pump(20.0, until=lambda: _state(connected) is DeviceState.FAULT)
+        pump(0.5)
+
+        assert connected.manual_panel.stop_button.styleSheet(), "кнопка СТОП не выделена"
+        assert "СТОП" in connected.telemetry_panel.state_label.text()
+        assert "упор" in connected.status_bar.currentMessage()
+
+        connected.manual_panel.stop_button.click()
+        assert pump(5.0, until=lambda: _state(connected) is DeviceState.IDLE)
+        pump(0.5)
+        assert not connected.manual_panel.stop_button.styleSheet(), "выделение не снято"
+
     def test_emergency_stop(self, connected, pump):
         connected.manual_panel.ccw_button.click()
         pump(2.0, until=lambda: _state(connected) is DeviceState.MOTOR)

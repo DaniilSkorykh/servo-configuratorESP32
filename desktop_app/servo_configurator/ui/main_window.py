@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
     def _on_state_changed(self, state: DeviceState) -> None:
         self.telemetry_panel.show_state(state)
         self.homing_panel.set_running(state is DeviceState.HOMING)
+        self.manual_panel.set_fault(state is DeviceState.FAULT)
 
     def _on_homing_finished(self, result: str, position: int, elapsed_ms: int) -> None:
         self.homing_panel.set_running(False)
@@ -200,7 +201,9 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(message, 5000)
 
     def _on_error(self, title: str, detail: str) -> None:
-        self.status_bar.showMessage(f"{title}: {detail}", 8000)
+        # Сообщение об ошибке не должно исчезать само: пользователь может
+        # смотреть на графики и пропустить его за отведённые секунды.
+        self.status_bar.showMessage(f"{title}: {detail}")
         logger.warning("%s: %s", title, detail)
 
     # ------------------------------------------------------------------
