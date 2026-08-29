@@ -28,7 +28,19 @@ LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 
 
 def configure_logging(verbose: bool, log_file: Path | None) -> None:
-    """Настраивает вывод журнала в консоль и, при необходимости, в файл."""
+    """Настраивает вывод журнала в консоль и, при необходимости, в файл.
+
+    Поток вывода переводится в UTF-8: консоль Windows по умолчанию работает в
+    однобайтовой кодировке, в которой нет ни тире, ни стрелок из сообщений, и
+    logging печатает «Logging error» вместо текста. Режим ``replace`` оставляет
+    сообщение читаемым даже там, где часть символов не отображается.
+    """
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        # Поток подменён или не поддерживает перенастройку — не повод падать.
+        pass
+
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)

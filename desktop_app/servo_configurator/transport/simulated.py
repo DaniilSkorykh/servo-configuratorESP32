@@ -10,6 +10,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from ..protocol import LinkError, LineAssembler, TransportError
@@ -57,6 +58,8 @@ class SimulatedTransport(Transport):
     :param persist: сохранять ли конфигурацию между запусками приложения.
         При ``True`` перезапуск приложения играет роль перезагрузки ESP32 и
         позволяет проверить пункт 17 сценария приёмки.
+    :param nvs_path: файл хранилища; по умолчанию — общий для приложения.
+        Учитывается только при ``persist``.
     :param clock: источник времени в секундах; подменяется в тестах.
     """
 
@@ -64,11 +67,13 @@ class SimulatedTransport(Transport):
         self,
         *,
         persist: bool = True,
+        nvs_path: Path | None = None,
         clock: Callable[[], float] = time.monotonic,
         firmware: SimulatedFirmware | None = None,
     ) -> None:
         self._clock = clock
-        self._nvs = SimulatedNvs(default_nvs_path() if persist else None)
+        storage = (nvs_path or default_nvs_path()) if persist else None
+        self._nvs = SimulatedNvs(storage)
         self._firmware = firmware or SimulatedFirmware(
             load_config=self._nvs.load,
             save_config=self._nvs.save,

@@ -165,6 +165,64 @@ class TestConfiguration:
         assert config["homing"]["speed"] == 300
 
 
+class TestPersistence:
+    """Пункт 17 сценария приёмки на настоящем файловом хранилище.
+
+    Остальные тесты работают с хранилищем в памяти, чтобы не влиять друг на
+    друга; здесь проверяется именно тот путь, которым пользуется приложение.
+    """
+
+    def make_device(self, path):
+        transport = SimulatedTransport(persist=True, nvs_path=path)
+        device = ServoDevice(transport)
+        device.connect()
+        return device
+
+    def test_saved_config_survives_restart(self, tmp_path):
+        path = tmp_path / "sim_nvs.json"
+
+        first = self.make_device(path)
+        first.write_config({"homing": {"speed": 777, "dir": "ccw"}})
+        first.save_config()
+        first.disconnect()
+
+        second = self.make_device(path)
+        config, dirty = second.read_config()
+        second.disconnect()
+
+        assert config["homing"]["speed"] == 777
+        assert config["homing"]["dir"] == "ccw"
+        assert dirty is False
+
+    def test_unsaved_changes_are_lost(self, tmp_path):
+        path = tmp_path / "sim_nvs.json"
+
+        first = self.make_device(path)
+        first.write_config({"homing": {"speed": 777}})  # без save_config
+        first.disconnect()
+
+        second = self.make_device(path)
+        config, _ = second.read_config()
+        second.disconnect()
+
+        assert config["homing"]["speed"] == 300
+
+    def test_restore_defaults_is_persisted(self, tmp_path):
+        path = tmp_path / "sim_nvs.json"
+
+        first = self.make_device(path)
+        first.write_config({"homing": {"speed": 777}})
+        first.save_config()
+        first.restore_defaults(save=True)
+        first.disconnect()
+
+        second = self.make_device(path)
+        config, _ = second.read_config()
+        second.disconnect()
+
+        assert config["homing"]["speed"] == 300
+
+
 class TestMotion:
     def test_homing_completes(self, device, collector):
         device.start_homing()
