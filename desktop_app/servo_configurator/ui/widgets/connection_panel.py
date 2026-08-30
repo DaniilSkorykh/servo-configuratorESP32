@@ -93,6 +93,10 @@ class ConnectionPanel(QGroupBox):
     def set_error(self, message: str) -> None:
         self._set_status(message, "#c0392b")
 
+    def set_warning(self, message: str) -> None:
+        """Связь с контроллером есть, но что-то требует внимания."""
+        self._set_status(message, "#8a6d1f")
+
     def set_busy(self, busy: bool) -> None:
         self.connect_button.setEnabled(not busy)
 

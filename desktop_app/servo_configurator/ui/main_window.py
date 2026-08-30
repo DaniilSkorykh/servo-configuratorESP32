@@ -156,6 +156,14 @@ class MainWindow(QMainWindow):
     def _on_connected(self, info: dict[str, Any]) -> None:
         description = f"{info.get('dev', '?')} · прошивка {info.get('fw', '?')}"
         self.connection_panel.set_connected(True, description)
+
+        # Отсутствие привода на шине — самая частая неполадка при наладке,
+        # и распознать её по отказам команд движения трудно.
+        if info.get("servo_online") is False:
+            self.connection_panel.set_warning(
+                f"Контроллер не видит сервопривод (адрес {info.get('servo_id', '?')}): "
+                "проверьте питание привода, шлейф, адрес и скорость шины"
+            )
         self._set_connected(True)
         self.charts_panel.clear()
         self._update_mode_label()

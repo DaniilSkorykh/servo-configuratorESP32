@@ -97,6 +97,10 @@ class TestConnection:
         assert info["dev"] == "ws-servo-esp32"
         assert info["proto"] == 1
 
+    def test_handshake_reports_servo_presence(self, device):
+        """Наличие привода на шине видно сразу после подключения."""
+        assert device.ping()["servo_online"] is True
+
     def test_connect_reports_state(self, device):
         assert device.is_connected
 

@@ -409,6 +409,9 @@ class SimulatedFirmware:
             "dev": DEVICE_NAME,
             "servo": SERVO_NAME,
             "servo_id": self.config["servo"]["id"],
+            # Модель привода всегда на связи; на реальной плате здесь результат
+            # опроса шины, и он отвечает на первый вопрос при наладке.
+            "servo_online": True,
             "uptime_ms": self._now_ms,
         })]
 

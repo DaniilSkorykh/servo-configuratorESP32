@@ -211,6 +211,10 @@ void Controller::commandPing(uint32_t id) {
     data["dev"] = DEVICE_NAME;
     data["servo"] = SERVO_NAME;
     data["servo_id"] = settings_.servoId;
+    // Ответ платы ничего не говорит о приводе: шина могла быть не подключена,
+    // адрес — не совпасть, скорость — отличаться от заводской. Отдельная
+    // проверка отвечает на первый вопрос при наладке: видит ли плата привод.
+    data["servo_online"] = bus_.ping(settings_.servoId);
     data["uptime_ms"] = millis();
     sendSuccess(id, data);
 }

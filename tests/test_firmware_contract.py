@@ -261,6 +261,17 @@ class TestSafetyInvariants:
         body = body.split("\nvoid Controller::")[0]
         assert "setTorque" in body, f"{handler} не возвращает момент"
 
+    def test_handshake_reports_servo_presence(self, controller_source):
+        """Ответ платы ничего не говорит о приводе — нужна отдельная проверка.
+
+        Без неё при наладке невозможно отличить «плата не прошита» от
+        «привод не подключён», и человек ищет причину наугад.
+        """
+        body = controller_source.split("void Controller::commandPing")[1]
+        body = body.split("\nvoid Controller::")[0]
+        assert "servo_online" in body
+        assert "bus_.ping" in body
+
     def test_line_length_limit_matches_protocol(self):
         source = read("src", "main.cpp")
         match = re.search(r"MAX_LINE_LENGTH = (\d+)", source)

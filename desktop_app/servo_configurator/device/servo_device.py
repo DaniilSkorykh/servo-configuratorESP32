@@ -125,6 +125,13 @@ class ServoDevice:
         if remote_version != PROTOCOL_VERSION:
             logger.warning("версия протокола устройства %s, приложения %d",
                            remote_version, PROTOCOL_VERSION)
+
+        # Плата ответила, но привод на шине может отсутствовать. Об этом лучше
+        # сказать сразу, а не оставлять человека выяснять причину по отказам
+        # команд движения.
+        if info.get("servo_online") is False:
+            logger.warning("контроллер не видит сервопривод с адресом %s",
+                           info.get("servo_id"))
         return info
 
     def clear_callbacks(self) -> None:
