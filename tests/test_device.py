@@ -281,22 +281,25 @@ class TestMotion:
 
         assert transport.firmware.state is DeviceState.IDLE
 
-    def test_keepalive_survives_lost_answers(self, device, transport):
-        """Помехи не должны прекращать фоновый обмен.
+    def test_keepalive_survives_occasional_losses(self, device, transport):
+        """Отдельные помехи не должны прекращать фоновый обмен.
 
         Прекращение означало бы, что устройство через секунду сочтёт ПК
-        отключившимся и остановит привод посреди штатного движения.
+        отключившимся и остановит привод посреди штатного движения. Связь
+        считается потерянной только когда ответов нет подряд (проверяется
+        отдельно в :meth:`test_silent_device_is_treated_as_link_loss`).
         """
         device.motor_run(Direction.CCW, speed=400)
 
-        # Помехи идут непрерывно, но не сплошь: часть посылок проходит.
-        deadline = time.monotonic() + 2.5
-        while time.monotonic() < deadline:
+        # Между порчами проходит несколько успешных обменов, поэтому счётчик
+        # неудач сбрасывается и связь остаётся живой.
+        for _ in range(3):
             transport.faults.corrupt_frames = 1
-            time.sleep(0.3)
+            time.sleep(1.0)
 
         transport.faults.corrupt_frames = 0
         time.sleep(0.3)
+        assert device.is_connected, "единичные помехи признаны потерей связи"
         assert transport.firmware.state is DeviceState.MOTOR, "привод остановлен watchdog"
         device.stop()
 
@@ -332,6 +335,25 @@ class TestTelemetryStream:
         transport.faults.silent = True
         time.sleep(0.7)
         assert device.is_telemetry_stalled()
+
+    def test_silent_device_is_treated_as_link_loss(self, device, transport, collector):
+        """Молчание устройства обязано приводить к разрыву, а не к бесконечным
+        таймаутам.
+
+        Порт остаётся открытым и запись проходит, поэтому ошибка транспорта не
+        возникает. Без отдельной проверки приложение продолжало бы слать команды
+        и отвечать оператору таймаутами, вместо того чтобы признать связь
+        потерянной и дать переподключиться.
+        """
+        device.set_telemetry(True, 20)
+        time.sleep(0.2)
+
+        transport.faults.silent = True
+        assert collector.wait_for(lambda c: bool(c.link_lost), timeout=8.0),             "молчание устройства не признано потерей связи"
+
+        assert not device.is_connected
+        _code, message = collector.link_lost[0]
+        assert "не отвеча" in message
 
     def test_no_stall_reported_without_telemetry(self, device):
         assert device.is_telemetry_stalled() is False

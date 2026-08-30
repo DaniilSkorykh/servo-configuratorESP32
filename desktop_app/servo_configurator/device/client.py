@@ -135,6 +135,15 @@ class DeviceClient:
         self._reader = reader
         logger.info("подключено: %s", self._transport.description)
 
+    def report_link_lost(self, code: str, message: str) -> None:
+        """Объявляет связь потерянной по решению вызывающего кода.
+
+        Нужна там, где обрыв не проявляется ошибкой транспорта: порт открыт и
+        запись проходит, но устройство перестало отвечать. Дальнейшие попытки
+        обмена в такой ситуации бессмысленны.
+        """
+        self._handle_link_loss(code, message)
+
     def clear_callbacks(self) -> None:
         """Перестаёт вызывать подписчиков (см. :meth:`ServoDevice.clear_callbacks`)."""
         self._on_notification = None
@@ -162,12 +171,21 @@ class DeviceClient:
         command: Command,
         args: dict[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        retry: bool = True,
+        quiet: bool = False,
     ) -> dict[str, Any]:
         """Отправляет команду и дожидается ответа.
 
         Вызов блокирующий, поэтому выполняется в рабочем потоке приложения,
         но не в потоке UI.
 
+        :param retry: разрешить повторы идемпотентной команды. Отключается там,
+            где повтор организует сам вызывающий код: фоновый опрос канала
+            повторяется по своему расписанию, и внутренние попытки лишь
+            растягивают обнаружение молчания устройства.
+        :param quiet: не писать в журнал о неудаче. Для фонового опроса, который
+            сообщает о происходящем сам и одним сообщением, а не на каждый цикл.
         :returns: содержимое поля ``data`` успешного ответа.
         :raises CommandError: устройство отклонило команду.
         :raises CommandTimeout: ответ не получен за отведённое время.
@@ -176,7 +194,7 @@ class DeviceClient:
         if timeout is None:
             timeout = NVS_TIMEOUT if command in _NVS_COMMANDS else DEFAULT_TIMEOUT
 
-        attempts = MAX_RETRIES + 1 if command in IDEMPOTENT_COMMANDS else 1
+        attempts = MAX_RETRIES + 1 if (retry and command in IDEMPOTENT_COMMANDS) else 1
         last_error: CommandTimeout | None = None
 
         for attempt in range(1, attempts + 1):
@@ -184,8 +202,11 @@ class DeviceClient:
                 response = self._exchange(command, args or {}, timeout)
             except CommandTimeout as exc:
                 last_error = exc
-                logger.warning("таймаут команды %s (попытка %d из %d)",
-                               command, attempt, attempts)
+                # Отдельные попытки пишутся в отладочный уровень: при молчании
+                # устройства их десятки в секунду, и они заслоняют собой
+                # сообщение о настоящей причине.
+                logger.debug("таймаут команды %s (попытка %d из %d)",
+                             command, attempt, attempts)
                 continue
 
             if not response.ok:
@@ -193,6 +214,8 @@ class DeviceClient:
             return response.data
 
         assert last_error is not None
+        if not quiet:
+            logger.warning("команда %s не выполнена: устройство не ответило", command)
         raise last_error
 
     def _exchange(self, command: Command, args: dict[str, Any], timeout: float) -> Response:

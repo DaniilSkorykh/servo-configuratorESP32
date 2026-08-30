@@ -19,6 +19,7 @@ from ..protocol import (
     Command,
     Direction,
     Event,
+    LinkError,
     Notification,
     Telemetry,
     TransportError,
@@ -38,6 +39,14 @@ _MIN_SILENCE_TIMEOUT = 0.5
 #: (``safety.link_timeout_ms`` = 1000 мс), чтобы одна пропущенная посылка не
 #: приводила к аварийной остановке привода.
 _KEEPALIVE_INTERVAL = 0.3
+
+#: Сколько подряд неудачных фоновых запросов считать потерей связи.
+#:
+#: Отдельные потери — обычное дело при помехах, поэтому одной мало. Но если
+#: устройство молчит подряд столько раз, дальнейшие попытки бессмысленны:
+#: порт открыт, запись проходит, а ответов нет. Приложение обязано объявить
+#: связь потерянной, а не висеть в таймаутах, пока оператор ждёт реакции.
+_KEEPALIVE_MAX_FAILURES = 4
 
 #: Таймаут фонового ``ping``, с.
 #:
@@ -179,7 +188,9 @@ class ServoDevice:
                 continue
 
             try:
-                self._client.request(Command.PING, timeout=_KEEPALIVE_TIMEOUT)
+                self._client.request(
+                    Command.PING, timeout=_KEEPALIVE_TIMEOUT, retry=False, quiet=True
+                )
             except TransportError:
                 # Канал закрыт: обрыв уже обработан потоком чтения.
                 return
@@ -188,6 +199,13 @@ class ServoDevice:
                 # О помехах сообщаем один раз, чтобы не заливать журнал.
                 if failures == 1:
                     logger.warning("нет ответа на фоновый запрос, попытки продолжаются")
+
+                if failures >= _KEEPALIVE_MAX_FAILURES:
+                    self._client.report_link_lost(
+                        LinkError.DISCONNECTED,
+                        f"устройство не отвечает: {failures} запроса подряд без ответа",
+                    )
+                    return
                 continue
 
             if failures:
